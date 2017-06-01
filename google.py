@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-from BeautifulSoup import BeautifulSoup
+from bs4 import BeautifulSoup
 from pprint import pprint
 import os
 import threading
@@ -211,36 +211,10 @@ class Google:
             if html:
                 if Google.DEBUG_MODE:
                     write_html_to_file(html, "images_{0}_{1}.html".format(query.replace(" ", "_"), i))
-                soup = BeautifulSoup(html)
-                j = 0
-                tds = soup.findAll("td")
-                for td in tds:
-                    a = td.find("a")
-                    if a and a["href"].find("imgurl") != -1:
-                        res = ImageResult()
-                        res.page = i
-                        res.index = j
-                        tokens = a["href"].split("&")
-                        match = re.search("imgurl=(?P<link>[^&]+)", tokens[0])
-                        if match:
-                            res.link = match.group("link")
-                            res.format = res.link[res.link.rfind(".") + 1:]
-                        img = td.find("img")
-                        if img:
-                            res.thumb = img["src"]
-                            res.thumb_width = img["width"]
-                            res.thumb_height = img["height"]
-                        match = re.search("(?P<width>[0-9]+) &times; (?P<height>[0-9]+) - (?P<size>[^&]+)", td.text)
-                        if match:
-                            res.width = match.group("width")
-                            res.name = td.text[:td.text.find(res.width)]
-                            res.height = match.group("height")
-                            res.filesize = match.group("size")
-                        cite = td.find("cite")
-                        if cite:
-                            res.domain = cite["title"]
-                        results.append(res)
-                        j = j + 1
+                soup = BeautifulSoup(html,"html.parser")
+                rg_metas = soup.find_all("div",class_="rg_meta")
+                for meta in rg_metas:
+                    results.append(meta.string)
         return results
     
     @staticmethod
@@ -354,6 +328,7 @@ class ImageType:
     PHOTO = "photo"
     CLIPART = "clipart"
     LINE_DRAWING = "lineart"
+    GIF = "animated"
     
 class SizeCategory:
     NONE = None
@@ -389,7 +364,7 @@ class ColorType:
     
 def get_image_search_url(query, image_options=None, page=0, per_page=20):
     query = query.strip().replace(":", "%3A").replace("+", "%2B").replace("&", "%26").replace(" ", "+")
-    url = "http://images.google.com/images?q=%s&sa=N&start=%i&ndsp=%i&sout=1" % (query, page * per_page, per_page)
+    url = "http://www.google.com/images?q=%s&sa=N&start=%i&ndsp=%i" % (query, page * per_page, per_page)
     if image_options:
         tbs = image_options.get_tbs()
         if tbs:
@@ -434,7 +409,7 @@ def is_number(s):
 def get_html(url):
     try:
         request = urllib2.Request(url)
-        request.add_header("User-Agent", "Mozilla/5.001 (windows; U; NT4.0; en-US; rv:1.0) Gecko/25250101")
+        request.add_header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.81 Safari/537.36")
         html = urllib2.urlopen(request).read()
         return html
     except:
@@ -446,41 +421,25 @@ def write_html_to_file(html, filename):
     of.write(html)
     of.flush()
     of.close()
+
+def array_to_json(array):
+    json = "["
+    if len(array) > 0:
+        json = json + ",".join(array)
+    json = json + "]"
+    return json
         
 def test():
-    search = Google.search("github")
-    if search is None or len(search) == 0: 
-        print "ERROR: No Search Results!"
-    else: 
-        print "PASSED: {0} Search Results".format(len(search))
-    
-    shop = Google.shopping("Disgaea 4")
-    if shop is None or len(shop) == 0: 
-        print "ERROR: No Shopping Results!"
-    else: 
-        print "PASSED: {0} Shopping Results".format(len(shop))
-    
     options = ImageOptions()
-    options.image_type = ImageType.CLIPART
+    options.image_type = ImageType.GIF
     options.larger_than = LargerThan.MP_4
     options.color = "green"
     images = Google.search_images("banana", options)
+    print array_to_json(images)
     if images is None or len(images) == 0: 
         print "ERROR: No Image Results!"
     else:
         print "PASSED: {0} Image Results".format(len(images))
-        
-    calc = Google.calculate("157.3kg in grams")
-    if calc is not None and int(calc.value) == 157300:
-        print "PASSED: Calculator passed"
-    else:
-        print "ERROR: Calculator failed!"
-        
-    euros = Google.convert_currency(5.0, "USD", "EUR")
-    if euros is not None and euros > 0.0:
-        print "PASSED: Currency convert passed"
-    else:
-        print "ERROR: Currency convert failed!"
         
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--debug":
@@ -490,4 +449,3 @@ def main():
         
 if __name__ == "__main__":
     main()
-    
